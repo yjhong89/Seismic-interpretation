@@ -3,13 +3,15 @@ import argparse
 import shutil
 import os
 import data_process
+import random
+import numpy as np
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--delete', action='store_true')
     parser.add_argument('-l', '--log', action='store_true')
-    parser.add_argument('-cube_incr', type=int, default=30. help='the number of increments included in each direction from the example to make a mini-cube')
+    parser.add_argument('-c', '--cube_incr', type=int, default=30, help='the number of increments included in each direction from the example to make a mini-cube')
 
     # Parsing argument
     args = parser.parse_args()
@@ -26,7 +28,7 @@ def main():
 
     if args.delete:
         tf.logging.warn('Delete existing tfrecord files')
-        shutil.rmtree(tfrecord)
+        shutil.rmtree(tfrecord_dir)
 
     if not os.path.exists(tfrecord_dir):
         os.makedirs(tfrecord_dir)
@@ -49,14 +51,32 @@ def main():
         pts_files.sort()
 
         segy_obj = data_process.segy_decomp(segy_files, plot_data=False)
-        adr_label = data_process.make_labels(pts_files, save_dir=data_dir, save=True) 
+        # Define the buffer zone around the edge of the cube that defines the legal/illegal adresses
+        inl_min = segy_obj.inl_start + segy_obj.inl_step*args.cube_incr
+        inl_max = segy_obj.inl_end - segy_obj.inl_step*args.cube_incr
+        xl_min = segy_obj.xl_start + segy_obj.xl_step*args.cube_incr
+        xl_max = segy_obj.xl_end - segy_obj.xl_step*args.cube_incr
+        t_min = segy_obj.t_start + segy_obj.t_step*args.cube_incr
+        t_max = segy_obj.t_end - segy_obj.t_step*args.cube_incr
+
+        # Print the buffer zone edges
+        print('Defining the buffer zone:')
+        print('(inl_min,','inl_max,','xl_min,','xl_max,','t_min,','t_max)')
+        print('(',inl_min,',',inl_max,',',xl_min,',',xl_max,',',t_min,',',t_max,')')
+        section = [inl_min, inl_max, segy_obj.inl_start, segy_obj.inl_step, xl_min, xl_max, segy_obj.xl_start, segy_obj.xl_step, t_min, t_max, segy_obj.t_start, segy_obj.t_step]
+
+        adr_label, num_classes = data_process.make_label(pts_files, save_dir=tfrecord_dir, save=True) 
+        # Shuffle
+            # np.take(arr, indices, axis=3) is equivalent to arr[:,:,:,indices,...]. If provided parameter 'out', the result will be placed in this array
+        adr_label = np.take(adr_label, np.random.permutation(len(adr_label)), axis=0, out=adr_label)
 
     except:
-        raise IOError
+        raise OSError
 
     # Make tfrecord
     try:
-         create_tfrecord(segy_obj, adr_label, args.cube_incr, tfrecord_dir, valid_split=0.15)
+        for i in ['train', 'valid']:
+            data_process.create_tfrecord(segy_obj.data, adr_label, section, args.cube_incr, tfrecord_dir, num_classes, data_type=i, valid_split=0.15)
     except:
         raise Exception
 

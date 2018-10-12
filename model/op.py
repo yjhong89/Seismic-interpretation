@@ -11,7 +11,11 @@ def _3d_batch_norm(x, training=True, name='batch_norm', decay=0.99, epsilon=1e-5
 
 def conv3d(x, out_channel, filter_size, stride, name='conv3d', activation=tf.nn.relu, normalization=True, padding='SAME', training=True, bias=True):
     # Data type: NHWDC
-    _, _, _, _, in_channel = x.get_shape().as_list()
+    if isinstance(x, np.ndarray):
+        in_channel = x.shape[-1]
+    else:
+        _, _, _, _, in_channel = x.get_shape().as_list()
+
     with tf.variable_scope(name):
         weight = tf.get_variable('weight', shape=[filter_size, filter_size, filter_size, in_channel, out_channel], initializer=tf.truncated_normal_initializer(stddev=0.02))
         output = tf.nn.conv3d(x, weight, strides=[1, stride, stride, stride, 1], padding=padding, data_format='NDHWC')

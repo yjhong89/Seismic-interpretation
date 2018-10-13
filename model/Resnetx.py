@@ -3,7 +3,7 @@ import numpy as np
 import model.op as op
 
 
-class resnetx(object):
+class Resnetx(object):
     def __init__(self, num_classes, channels, training, name='resnetx', group=32, reuse=False):
         self.num_classes = num_classes
         self.channels = channels
@@ -34,16 +34,14 @@ class resnetx(object):
             block_index += 1
             print(l4.get_shape().as_list())
 
-            l5 = op.block(l4, self.channels, group=self.group, name='block_%d'%block_index, training=self.training, down_sample=False)
+#            l6 = op.global_avg_pool(l5)
+#            print(l6.get_shape().as_list())
+            l4 = tf.reshape(l4, [-1, np.prod(l4.get_shape().as_list()[1:])])
+            l5 = op.fc(l4, self.channels, name='fc', bias=True)  
             print(l5.get_shape().as_list())
-            
-            l6 = op.global_avg_pool(l5)
-            print(l6.get_shape().as_list())
 
-            l7 = op.fc(l6, self.num_classes, activation=None, name='pre-softmax', bias=True) 
-            print(l7.get_shape().as_list())
+            self.logits = op.fc(l5, self.num_classes, activation=None, name='pre-softmax', bias=True) 
 
-            self.logits = l7
 
     def _get_trainable_vars(self, scope):
         tf.logging.info('Getting trainable variables')
@@ -62,12 +60,13 @@ class resnetx(object):
 
         optimizer = tf.train.AdamOptimizer(learning_rate)
         
-        grad, var = zip(*optimizer.compute_gradients(loss, var_list=var_list))
-        clipped_gradients = [gradient if gradient is None else tf.clip_by_value(gradient, -clip_norm, clip_norm) for gradient in grad]
-
         # For batch normalization moving average update
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
+        
+            grad, var = zip(*optimizer.compute_gradients(loss, var_list=var_list))
+            clipped_gradients = [gradient if gradient is None else tf.clip_by_value(gradient, -clip_norm, clip_norm) for gradient in grad]
+
             if global_steps is not None:
                 optim = optimizer.apply_gradients(zip(clipped_gradients, var), global_step=global_steps)
             else:

@@ -3,6 +3,7 @@ import argparse
 import shutil
 import os
 import data_process
+import dataset
 import random
 import numpy as np
 
@@ -75,8 +76,11 @@ def main():
 
     # Make tfrecord
     try:
-        for i in ['train', 'valid']:
-            data_process.create_tfrecord(segy_obj.data, adr_label, section, args.cube_incr, tfrecord_dir, num_classes, data_type=i, valid_split=0.15)
+        #for i in ['train', 'valid']:
+        #    data_process.create_tfrecord(segy_obj.data, adr_label, section, args.cube_incr, tfrecord_dir, num_classes, data_type=i, valid_split=0.15)
+
+        with tf.Session() as sess:
+            dataset.get_batches(segy_obj.data, adr_label, section, args.cube_incr, num_classes, sess)
     except:
         raise Exception
 

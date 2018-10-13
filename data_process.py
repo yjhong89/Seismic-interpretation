@@ -85,7 +85,7 @@ def segy_decomp(segy_file, plot_data = False, read_direc='xline', inp_res = np.f
 
 
 ### ---- Function for making labels of each class from .pts files
-def make_label(pts_files, save_dir, save=False, savename='addr_label'):
+def make_label(pts_files, save_dir='./', save=False, savename='addr_label'):
     if not isinstance(pts_files, list):
         raise Error
 
@@ -108,7 +108,9 @@ def make_label(pts_files, save_dir, save=False, savename='addr_label'):
     for i in range(len(pts_files)):
         # Load pts file except last value, address of [ilines, xlines, time]
         # Shape of [length of lines, 3]
-        pts = np.loadtxt(pts_files[0], skiprows=0, usecols = range(3), dtype=np.int32)
+        pts = np.loadtxt(pts_files[i], skiprows=0, usecols = range(3), dtype=np.int32)
+
+        print('%s pts_file assigns to label %d' % (pts_files[i], i))
         # Attach label next to address
         pts_label = np.append(pts, i*np.ones((len(pts), 1)), axis=1)
         adr_label = np.append(adr_label, pts_label, axis=0)
@@ -162,7 +164,6 @@ def create_tfrecord(segy_array, addr_label, section, cube_incr, tfrecord_dir, nu
 
                 writer.write(example.SerializeToString())                
 
-
             else:
                 continue
 
@@ -201,6 +202,6 @@ def _bytes_features(value):
 
 
 if __name__ == "__main__":
-    segy_file = './F3_entire.segy'
+    segy_file = 'data/F3_entire.segy'
     output = segy_decomp(segy_file, plot_data=True) 
-
+    print(len(output.data))

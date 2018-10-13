@@ -2,11 +2,10 @@ import numpy as np
 import tensorflow as tf
 
 
-def _3d_batch_norm(x, training=True, name='batch_norm', decay=0.99, epsilon=1e-5):
+def _3d_batch_norm(x, training=True, name='batch_norm', epsilon=1e-5):
     assert(len(x.get_shape().as_list()) == 5)
 
-    return tf.contrib.layers.batch_norm(
-            x, data_format='NHWC', center=True, scale=True, decay=decay, epsilon=epsilon, is_training=training, scope=name)
+    return tf.layers.batch_normalization(x, center=True, scale=True, epsilon=epsilon, training=training)
 
 
 def conv3d(x, out_channel, filter_size, stride, name='conv3d', activation=tf.nn.relu, normalization=True, padding='SAME', training=True, bias=True):
@@ -57,6 +56,8 @@ def fc(x, hidden, activation=tf.nn.relu, name='fc', bias=True):
 def group_conv3d(x, channels, group, filter_size, stride,  name):
     group_index = 0
     in_channels = x.get_shape().as_list()[-1]
+
+    assert(np.mod(in_channels, group) == 0 and np.mod(channels, group) == 0)
     num_group = int(in_channels/group)
     with tf.variable_scope(name):
         conv_index = 0

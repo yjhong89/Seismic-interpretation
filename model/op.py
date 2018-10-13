@@ -2,9 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def _3d_batch_norm(x, training=True, name='batch_norm', epsilon=1e-5):
-    assert(len(x.get_shape().as_list()) == 5)
-
+def _batch_norm(x, training=True, name='batch_norm', epsilon=1e-5):
     return tf.layers.batch_normalization(x, center=True, scale=True, epsilon=epsilon, training=training)
 
 
@@ -24,7 +22,7 @@ def conv3d(x, out_channel, filter_size, stride, name='conv3d', activation=tf.nn.
             output = output + bias
 
         if normalization:
-            output = _3d_batch_norm(output, training=training)
+            output = _batch_norm(output, training=training)
         if activation is not None:
             output = activation(output)
 
@@ -37,7 +35,7 @@ def max_pool3d(x, filter_size, stride, padding='SAME'):
 def global_avg_pool(x):
     return tf.reduce_mean(x, [1,2,3])
 
-def fc(x, hidden, activation=tf.nn.relu, name='fc', bias=True):
+def fc(x, hidden, activation=tf.nn.relu, name='fc', normalization=True, training=True, bias=True):
     _, in_channels = x.get_shape().as_list()
     with tf.variable_scope(name):
         weight = tf.get_variable('weight', shape=[in_channels, hidden], initializer=tf.truncated_normal_initializer(stddev=0.02))
@@ -46,6 +44,9 @@ def fc(x, hidden, activation=tf.nn.relu, name='fc', bias=True):
         if bias:
             bias = tf.get_variable('bias', shape=[hidden], initializer=tf.constant_initializer(0.1))
             output = output + bias
+
+        if normalization:
+            output = _batch_norm(output, training=training)
 
         if activation is not None:
             output = activation(output)
@@ -91,7 +92,7 @@ def block(x, channels, group, name, training, down_sample=True):
 
         # conv, 3^3, channels, group=32 | BN | Relu
         layer2 = group_conv3d(layer1, channels, group, filter_size=3, stride=stride, name='group_conv3d_%d'%layer_index)
-        layer2 = tf.nn.relu(_3d_batch_norm(layer2, training=training))
+        layer2 = tf.nn.relu(_batch_norm(layer2, training=training))
         layer_index += 1
         
         # conv, 1^3, channels*2 | BN

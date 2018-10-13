@@ -17,7 +17,7 @@ def main():
 
     # Model parameters
     parser.add_argument('--channels', type=int, default=64)
-    parser.add_argument('--model', type=str, default='Resnetx')
+    parser.add_argument('--model', type=str, default='Normal_cnn')
     parser.add_argument('--group', type=int, default=32)
     parser.add_argument('--cube_incr', type=int, default=27)
 

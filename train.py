@@ -5,8 +5,6 @@ import dataset
 import shutil
 import importlib
 import time
-from model.resnetx import resnetx
-
 
 class Seismic(object):
     def __init__(self, args, sess):
@@ -18,8 +16,9 @@ class Seismic(object):
         self.save_dir = os.path.join(base_dir, self.args.save_dir)
         self.data_dir = os.path.join(base_dir, self.args.data_dir)
 
-        if args.delete and os.path.exists(os.path.join(self.save_dir, self.model_dir)):
+        if args.delete and os.path.exists(os.path.join(self.save_dir, self.model_dir)) and os.path.exists(os.path.join(self.log_dir, self.model_dir)):
             shutil.rmtree(os.path.join(self.save_dir, self.model_dir))
+            shutil.rmtree(os.path.join(self.log_dir, self.model_dir))            
 
         os.makedirs(self.save_dir, exist_ok=True)
      
@@ -32,18 +31,27 @@ class Seismic(object):
     
         self.cube_size = self.args.cube_incr*2 + 1
         self.segy_array, address_label, section, num_classes = dataset.get_segy_pts(self.data_dir, self.args.cube_incr, self.args.log_dir)
-        
 
-        self.train_seismic_model = resnetx(num_classes, self.args.channels, training=True, name=self.args.model, group=self.args.group, reuse=False)
-        self.valid_seismic_model = resnetx(num_classes, self.args.channels, training=False, name=self.args.model, group=self.args.group, reuse=True)
-
-        # Getting address, label
-        self.train_addr_label_batch = dataset.get_batches(address_label, section, self.cube_size, num_classes, self.args.batch_size, self.sess, 'train', self.args.valid_split) 
-        self.valid_addr_label_batch = dataset.get_batches(address_label, section, self.cube_size, num_classes, self.args.batch_size, self.sess, 'valid', self.args.valid_split)
+        try:
+            # Getting model
+            tf.logging.info('Getting %s model' % self.args.model)
+            model_path = importlib.import_module(self.args.model_dir + '.' + self.args.model)
+            seismic_model = getattr(model_path, self.args.model)     
+        except:
+            raise ImportError
 
         self.global_steps = tf.train.get_or_create_global_step()
 
+        # Getting address, label
+        with tf.name_scope('batch'):
+            self.train_addr_label_batch = dataset.get_batches(address_label, section, self.cube_size, num_classes, self.args.batch_size, self.sess, 'train', self.args.valid_split) 
+            self.valid_addr_label_batch = dataset.get_batches(address_label, section, self.cube_size, num_classes, self.args.batch_size, self.sess, 'valid', self.args.valid_split)
+
         with tf.name_scope('Seismic_model'):
+            self.train_seismic_model = seismic_model(num_classes, self.args.channels, training=True, name=self.args.model, group=self.args.group, reuse=False)
+            self.valid_seismic_model = seismic_model(num_classes, self.args.channels, training=False, name=self.args.model, group=self.args.group, reuse=True)
+
+
             self.cube = tf.placeholder(tf.float32, [None, self.cube_size, self.cube_size, self.cube_size, 1]) 
             self.labels = tf.placeholder(tf.int32, [None, num_classes])        
     
@@ -68,7 +76,9 @@ class Seismic(object):
         self.saver = tf.train.Saver(max_to_keep=5)
 
     def train(self):
-        writer = tf.summary.FileWriter(self.log_dir, self.sess.graph)
+        if not os.path.exists(os.path.join(self.log_dir, self.model_dir)):
+            os.makedirs(os.path.join(self.log_dir, self.model_dir), exist_ok=True)
+        writer = tf.summary.FileWriter(os.path.join(self.log_dir, self.model_dir), self.sess.graph)
 
         # Initialize all variables
         self.sess.run(tf.group(tf.global_variables_initializer(), tf.local_variables_initializer()))
@@ -82,6 +92,8 @@ class Seismic(object):
 
                 train_batch = self.sess.run(self.train_addr_label_batch)
                 train_segy_batch = dataset.make_segy_batch(self.segy_array, train_batch[0], self.args.cube_incr)
+                if self.args.augmentation:
+                    train_segy_batch = dataset.augmentation(train_segy_batch, self.args.augmentation_prob)
 
                 _, loss_, acc_, train_summary_, steps = self.sess.run([self.train_op, self.train_loss, self.train_acc, self.train_summary, self.global_steps], feed_dict={self.cube:train_segy_batch, self.labels:train_batch[1]})
 
@@ -117,15 +129,16 @@ class Seismic(object):
 
 
     def save(self, ckpt_dir, save_step):
-        checkpoint_dir = os.path.join(os.getcwd(), ckpt_dir)
+        checkpoint_dir = os.path.join(ckpt_dir, self.model_dir)
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)    
 
         self.saver.save(self.sess, os.path.join(checkpoint_dir, self.model_dir), global_step=save_step)    
         tf.logging.info('Checkpoint saved\n')
 
+
     @property
     def model_dir(self):
-        return '{}_cube_size_{}_channels'.format(self.args.cube_incr*2+1, self.args.channels) 
+        return '{}_{}cubesize_{}channels'.format(self.args.model, self.args.cube_incr*2+1, self.args.channels) 
         
 

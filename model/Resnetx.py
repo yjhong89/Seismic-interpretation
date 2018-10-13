@@ -37,10 +37,10 @@ class Resnetx(object):
 #            l6 = op.global_avg_pool(l5)
 #            print(l6.get_shape().as_list())
             l4 = tf.reshape(l4, [-1, np.prod(l4.get_shape().as_list()[1:])])
-            l5 = op.fc(l4, self.channels, name='fc', bias=True)  
+            l5 = op.fc(l4, self.channels, name='fc', normalization=True, training=self.training, bias=True)  
             print(l5.get_shape().as_list())
 
-            self.logits = op.fc(l5, self.num_classes, activation=None, name='pre-softmax', bias=True) 
+            self.logits = op.fc(l5, self.num_classes, activation=None, name='pre-softmax', normalization=False, training=self.training, bias=True) 
 
 
     def _get_trainable_vars(self, scope):

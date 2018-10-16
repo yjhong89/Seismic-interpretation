@@ -88,8 +88,6 @@ class Seismic(object):
             best_valid_accuracy = -1000
 
             for epoch in range(self.args.num_epochs):
-                start_time = time.time()
-
                 train_batch = self.sess.run(self.train_addr_label_batch)
                 train_segy_batch = dataset.make_segy_batch(self.segy_array, train_batch[0], self.args.cube_incr)
                 if self.args.augmentation:
@@ -106,6 +104,8 @@ class Seismic(object):
     
                     valid_batch = self.sess.run(self.valid_addr_label_batch)
                     valid_segy_batch = dataset.make_segy_batch(self.segy_array, valid_batch[0], self.args.cube_incr)
+                    if self.args.augmentation:
+                        valid_segy_batch = dataset.augmentation(valid_segy_batch, self.args.augmentation_prob)
                     
                     valid_loss_, valid_acc_, valid_summary_ = self.sess.run([self.valid_loss, self.valid_acc, self.valid_summary], feed_dict={self.cube:valid_segy_batch, self.labels:valid_batch[1]})
     

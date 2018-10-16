@@ -1,10 +1,11 @@
 import tensorflow as tf
 import numpy as np
 import dataset
+import utils
 import importlib
+import os
 
-
-class prediction(object):
+class Prediction(object):
     def __init__(self, args, sess):
         self.args = args
         self.sess = sess
@@ -13,7 +14,7 @@ class prediction(object):
         self.data_dir = os.path.expanduser(self.args.data_dir) 
         
         self.cube_size = self.args.cube_incr*2 + 1
-        self.segy_array, address_label, section, num_classes = dataset.get_segy_pts(self.data_dir, self.args.cube_cinr, save=False)
+        self.segy_array, address_label, section, self.num_classes = dataset.get_segy_pts(self.data_dir, self.args.cube_incr, save=False)
 
         try:
             # Getting model
@@ -24,20 +25,29 @@ class prediction(object):
         except:
             raise ImportError
 
-        with tf.name_Scope('batch'):
-            self.pred_addr_label_batch = dataset.get_batches(address_label, section, self.cube_size, num_classes, self.args.pred_batch_size, self.sess, 'valid', self.args.valid_split)
+        # Define section
+        self.pred_section = list()
+        # inline start
+        self.pred_section.append((self.args.section_list[0] - section[2]) // section[3])
+        # inline end
+        self.pred_section.append((self.args.section_list[1] - section[2]) // section[3])
+        # xline start
+        self.pred_section.append((self.args.section_list[2] - section[6]) // section[7])
+        # xline end
+        self.pred_section.append( (self.args.section_list[3] - section[6]) // section[7])
+        # time start
+        self.pred_section.append((self.args.section_list[4] - section[10]) // section[11])
+        # time end
+        self.pred_section.append((self.args.section_list[5] - section[10]) // section[11])
+
 
         with tf.name_scope('Prediction'):
-            self.pred_seismic_model = seismic_model(num_classes, self.args.channels, training=False, name=self.args.model, group=selfargs.group, reuse=False)
+            self.pred_seismic_model = seismic_model(self.num_classes, self.args.channels, training=False, name=self.args.model, group=self.args.group, reuse=False)
 
-            self.cube = tf.placeholder(tf.float32, [None, self.cuibe_size, self.cube_size, self.cube_size, 1])
-            self.labels = tf.placeholder(tf.int32, [None, num_classes])
+            self.cube = tf.placeholder(tf.float32, [None, self.cube_size, self.cube_size, self.cube_size, 1])
 
             self.pred_seismic_model(self.cube)
 
-            with tf.name_scope('accuracy'):
-                self.pred_acc = self.pred_seismic_model.metric(self.labels)
-        
         self.saver = tf.train.Saver()
 
 
@@ -45,15 +55,50 @@ class prediction(object):
         self.sess.run(tf.group(tf.global_variables_initializer(), tf.local_variables_initializer()))
 
         if self.load(self.save_dir):
-            tf.logging.info('%s checkpoint loaded' % os.path.join(self.save_dir, self.model_dir))
+            tf.logging.info('%s loaded' % os.path.join(self.save_dir, self.model_dir))
         else:
             raise Exception('Not loaded')
 
         try:
-    
+            # Make numpy array to hold prediction result, we only show classes, not prediction
+            inline_length = self.pred_section[1] - self.pred_section[0] + 1
+            xline_length = self.pred_section[3] - self.pred_section[2] + 1
+            time_depth = self.pred_section[5] - self.pred_section[4] + 1
+            if np.mod(time_depth,self.args.pred_batch) != 0:
+                raise Exception('Prediction batch size must be dividable by time depth %d' % time_depth)
+            else:
+                tf.logging.info('Inline length: %d, xline length: %d, time depth: %d, prediction batch size: %d' % (inline_length, xline_length, time_depth, self.args.pred_batch))
+            total_length = inline_length * xline_length*time_depth
+            print('Total spot to estimate: %d' % total_length)
 
-        except KeyboardInterrupt:
-            pass
+            prediction = np.empty([total_length, 1], dtype=np.float32)
+
+            # Make data cube to feed to the network
+            data = np.empty([self.args.pred_batch, self.cube_size, self.cube_size, self.cube_size, 1], dtype=np.float32)
+
+            # index for counting each batch to put in prediction
+            index = 0
+            # Iterate through inline/xline/time
+            for inline in range(self.pred_section[0], self.pred_section[1]+1):
+                for xline in range(self.pred_section[2], self.pred_section[3]+1):
+                    for t_line in range(self.pred_section[4], self.pred_section[5]+1):
+                        for i in range(self.args.pred_batch):
+                            data[i,:,:,:,:] = utils.cube_parse(self.segy_array, cube_incr=self.args.cube_incr, inline_num=inline, xline_num=xline, depth=t_line+i)                 
+                        classes_ = self.sess.run(tf.argmax(tf.nn.softmax(self.pred_seismic_model.logits), axis=-1), feed_dict={self.cube:data})                
+                        # Expand dimension to [batch size, 1]
+                        prediction[index*self.args.pred_batch, :] = np.expand_dims(classes_, axis=1)
+                        index += 1    
+
+            # Check loops
+            if not index*self.args.pred_batch == total_length:
+                raise Exception
+
+            print('\tReshape prediction')
+            prediction = prediction.reshape([inline_length, xline_length, time_depth, -1])
+
+                             
+        except:
+            raise ValueError
 
 
         finally:
@@ -67,9 +112,10 @@ class prediction(object):
 
         if ckpt and ckpt.model_checkpoint_path:
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
-            self.saver.restore(self.sess, ckpt_name)
+            tf.logging.info('Checkpoint path: %s' % ckpt_name)
+            self.saver.restore(self.sess, ckpt.model_checkpoint_path)
 
-            tf.logging.info('Restoring checkpoint')
+            return True
 
         else:
             raise Exception('Checkpoint not loaded')

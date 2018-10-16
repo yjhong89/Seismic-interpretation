@@ -37,6 +37,8 @@ class Resnetx(object):
 #            l6 = op.global_avg_pool(l5)
 #            print(l6.get_shape().as_list())
             l4 = tf.reshape(l4, [-1, np.prod(l4.get_shape().as_list()[1:])])
+            print(l4.get_shape().as_list())
+
             l5 = op.fc(l4, self.channels, name='fc', normalization=True, training=self.training, bias=True)  
             print(l5.get_shape().as_list())
 

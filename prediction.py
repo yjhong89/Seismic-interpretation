@@ -4,6 +4,9 @@ import dataset
 import utils
 import importlib
 import os
+import matplotlib.pyplot as plt
+from matplotlib import gridspec
+
 
 class Prediction(object):
     def __init__(self, args, sess):
@@ -40,6 +43,10 @@ class Prediction(object):
         # time end
         self.pred_section.append((self.args.section_list[5] - section[10]) // section[11])
 
+        if self.args.xline_ref < section[6] or self.args.xline_ref > section[5]:
+            raise ValueError('Not valid xline %d')
+        else: 
+            self.xline_ref = (self.args.xline_ref - section[6]) // section[7] 
 
         with tf.name_scope('Prediction'):
             self.pred_seismic_model = seismic_model(self.num_classes, self.args.channels, training=False, name=self.args.model, group=self.args.group, reuse=False)
@@ -87,7 +94,8 @@ class Prediction(object):
                         classes_ = self.sess.run(tf.argmax(tf.nn.softmax(self.pred_seismic_model.logits), axis=-1), feed_dict={self.cube:data})                
                         # Expand dimension to [batch size, 1]
                         prediction[index*self.args.pred_batch, :] = np.expand_dims(classes_, axis=1)
-                        index += 1    
+                        index += 1 
+                        tf.logging.info('Index %d => Inline: %d, xline: %d, time depth: %d, class %d' % (index, inline, xline, t_line, np.squeeze(classes_)))   
 
             # Check loops
             if not index*self.args.pred_batch == total_length:
@@ -96,7 +104,29 @@ class Prediction(object):
             print('\tReshape prediction')
             prediction = prediction.reshape([inline_length, xline_length, time_depth, -1])
 
-                             
+            if self.args.visualization:
+                plt.figure(figsize=(20,20))
+                # 1 row, 2 cols
+                gs = gridspec.GridSpec(1, 2, width_ratios=[3,1])
+
+                # Plot seismic image at xline ref
+                plt.subplot(gs[0])                                             
+                plt.title('%d x-line' % self.xline_ref)
+                # x-axis: inline, y-aixs: t 
+                # cmap: color distribution, extent: [horizontal min/max, vertical min/max] 
+                plt.imshow(self.segy_array[self.pred_section[0]:self.pred_section[1]+1,self.xline_ref,self.pred_section[4]:self.pred_section[5]+1].T, interpolation="nearest", cmap="gray", extent=[self.pred_section[0],self.pred_section[1],-self.pred_section[5],-self.pred_section[4]])
+                # Add color bar
+                plt.colorbar()
+                plt.show()
+
+                # Plot classification
+                plt.subplot(gs[1])
+                plt.title('Classification')
+                plt.imshow(prediction[:,self.xline_ref-self.pred_section[2], :,0].T, interpolation="nearest", cmap="gist_rainbow", clim=(0.0, self.num_classes-1), extent=[self.pred_section[0],self.pred_section[1],-self.pred_section[5],-self.pred_section[4]])
+                plt.colorbar()
+                plt.show()
+
+ 
         except:
             raise ValueError
 

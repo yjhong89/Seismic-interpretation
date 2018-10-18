@@ -39,8 +39,9 @@ def main():
 
     # Predictions
     parser.add_argument('--pred_batch', type=int, default=1)
+    parser.add_argument('--xline_ref', type=int, default=700)
+    parser.add_argument('-v', '--visualize', type=str2bool, default='t')
     parser.add_argument('-s', '--section_list', type=int, dest='section_list', default=[150, 700, 350, 1200, 150, 1700], action='append') 
-
 
     args = parser.parse_args()
     print(args.section_list)

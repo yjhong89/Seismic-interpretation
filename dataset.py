@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-import data_process
+import utils
 import os
 
 
@@ -29,7 +29,7 @@ def get_batches(addr_label, section, cube_size, num_classes, batch_size, sess, d
                 
             # Get label of 3d mini-cube and make one hot encoded
             label = address_label[i][-1]
-            label = data_process._get_one_hot(label, num_classes)
+            label = utils._get_one_hot(label, num_classes)
 
             #print('Address', address_label[i][:3], 'Label', label)
             address_list.append(index)
@@ -65,7 +65,7 @@ def get_segy_pts(data_dir, cube_incr, save_dir=None, save=True):
     pts_files.sort()
     print('Point files', pts_files)
 
-    segy_obj = data_process.segy_decomp(segy_files, plot_data=False, inp_res = np.float32)
+    segy_obj = utils.segy_decomp(segy_files, plot_data=False, inp_res = np.float32)
     # Define the buffer zone around the edge of the cube that defines the legal/illegal adresses
     inl_min = segy_obj.inl_start + segy_obj.inl_step*cube_incr
     inl_max = segy_obj.inl_end - segy_obj.inl_step*cube_incr
@@ -80,7 +80,7 @@ def get_segy_pts(data_dir, cube_incr, save_dir=None, save=True):
     print('(',inl_min,',',inl_max,',',xl_min,',',xl_max,',',t_min,',',t_max,')')
     section = [inl_min, inl_max, segy_obj.inl_start, segy_obj.inl_step, xl_min, xl_max, segy_obj.xl_start, segy_obj.xl_step, t_min, t_max, segy_obj.t_start, segy_obj.t_step]
 
-    adr_label, num_classes = data_process.make_label(pts_files, save_dir=save_dir, save=save) 
+    adr_label, num_classes = utils.make_label(pts_files, save_dir=save_dir, save=save) 
     # Shuffle
         # np.take(arr, indices, axis=3) is equivalent to arr[:,:,:,indices,...]. If provided parameter 'out', the result will be placed in this array
     adr_label = np.take(adr_label, np.random.permutation(len(adr_label)), axis=0, out=adr_label)
@@ -138,4 +138,5 @@ def augmentation(segy_array, augmentation_prob):
 
 
 
-
+if __name__ == "__main__":
+    a = get_segy_pts('data', 32, save=False)

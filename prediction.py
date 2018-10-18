@@ -5,6 +5,7 @@ import utils
 import importlib
 import os
 import matplotlib.pyplot as plt
+import patplotlib.patches as mpatches
 from matplotlib import gridspec
 
 
@@ -17,7 +18,7 @@ class Prediction(object):
         self.data_dir = os.path.expanduser(self.args.data_dir) 
         
         self.cube_size = self.args.cube_incr*2 + 1
-        self.segy_array, address_label, section, self.num_classes = dataset.get_segy_pts(self.data_dir, self.args.cube_incr, save=False)
+        self.segy_array, address_label, section, self.num_classes, self.label_dict = dataset.get_segy_pts(self.data_dir, self.args.cube_incr, save=False, pred=True)
 
         try:
             # Getting model
@@ -122,8 +123,14 @@ class Prediction(object):
                 # Plot classification
                 plt.subplot(gs[1])
                 plt.title('Classification')
-                plt.imshow(prediction[:,self.xline_ref-self.pred_section[2], :,0].T, interpolation="nearest", cmap="gist_rainbow", clim=(0.0, self.num_classes-1), extent=[self.pred_section[0],self.pred_section[1],-self.pred_section[5],-self.pred_section[4]])
-                plt.colorbar()
+                plot_class = plt.imshow(prediction[:,self.xline_ref-self.pred_section[2], :,0].T, interpolation="nearest", cmap="gist_rainbow", clim=(0.0, self.num_classes-1), extent=[self.pred_section[0],self.pred_section[1],-self.pred_section[5],-self.pred_section[4]])
+                
+                class_values = np.arange(0, self.num_classes)
+                colors = [plot_class.cmap(plot_class.norm(class_value)) for class_value in class_values]
+                patches = [mpatches.Patch(color=colors[i], label=self.label_dict[i]) for i in range(self.num_classes)]  
+                plt.legend(handles=patches, loc='upper right', bbox_to_anchor=(1, 0.5), borderaxespad=0.5) 
+
+                plt.grid(True)
                 plt.show()
 
  

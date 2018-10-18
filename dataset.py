@@ -49,7 +49,7 @@ def get_batches(addr_label, section, cube_size, num_classes, batch_size, sess, d
     return next_element    
 
 
-def get_segy_pts(data_dir, cube_incr, save_dir=None, save=True):
+def get_segy_pts(data_dir, cube_incr, save_dir=None, save=False, pred=False):
     files = os.listdir(data_dir)    
     pts_files = list()
     for f in files:
@@ -85,7 +85,11 @@ def get_segy_pts(data_dir, cube_incr, save_dir=None, save=True):
         # np.take(arr, indices, axis=3) is equivalent to arr[:,:,:,indices,...]. If provided parameter 'out', the result will be placed in this array
     adr_label = np.take(adr_label, np.random.permutation(len(adr_label)), axis=0, out=adr_label)
 
-    return segy_obj.data, adr_label, section, num_classes
+    if pred:
+        label_dict = utils.label_dict(pts_files)
+        return segy_obj.data, adr_label, section, num_classes, label_dict
+    else:
+        return segy_obj.data, adr_label, section, num_classes
 
 
 def make_segy_batch(segy_array, address, cube_incr, num_channels=1):
@@ -109,7 +113,7 @@ def make_segy_batch(segy_array, address, cube_incr, num_channels=1):
         # TODO: More segy volumes, more channel
         cube_data = np.expand_dims(cube_data, -1)
 
-        segy_batch[i,:,:,:,:] = cube_data / 127.0
+        segy_batch[i,:,:,:,:] = cube_data 
         
     
     return segy_batch

@@ -126,6 +126,13 @@ def make_label(pts_files, save_dir='./', save=False, savename='addr_label'):
 
     return adr_label, num_classes
     
+def label_dict(pts_files):
+    label_dict = dict()
+    for i, j in enumerate(pts_files):
+        label_dict[i] = os.path.splitext(j)[0].split('_')[1:-1]
+    
+    return label_dict        
+
 
 def cube_parse(segy_array, cube_incr, inline_num, xline_num, depth):
     cube_size = cube_incr*2 + 1

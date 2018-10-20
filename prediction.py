@@ -109,6 +109,9 @@ class Prediction(object):
             print('\tReshape prediction')
             prediction = prediction.reshape([inline_length, xline_length, time_depth, -1])
 
+            if self.args.pred_save:
+                np.save(os.path.join(self.log_dir, self.model_dir), prediction)
+
             if self.args.visualization:
                 plt.figure(figsize=(20,20))
                 # 1 row, 2 cols

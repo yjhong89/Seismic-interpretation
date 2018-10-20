@@ -11,7 +11,7 @@ def main():
     parser = argparse.ArgumentParser()
 
     # Directories
-    parser.add_argument('--log_dir', type=str, default='./logs')
+    parser.add_argument('--log_dir', type=str, default='logs')
     parser.add_argument('--save_dir', type=str, default='ckpt')
     parser.add_argument('--data_dir', type=str, default='data')
     parser.add_argument('--model_dir', type=str, default='model')
@@ -38,8 +38,9 @@ def main():
     parser.add_argument('-t', '--training', action='store_true')
 
     # Predictions
-    parser.add_argument('--pred_batch', type=int, default=32)
+    parser.add_argument('--pred_batch', type=int, default=64)
     parser.add_argument('--xline_ref', type=int, default=700)
+    parser.add_argument('--pred_save', type=str2bool, default='t')
     parser.add_argument('-v', '--visualize', type=str2bool, default='t')
     parser.add_argument('-s', '--section_list', type=int, dest='section_list', default=[150, 700, 350, 1200, 150, 1700], action='append') 
 

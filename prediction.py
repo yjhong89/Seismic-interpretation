@@ -5,7 +5,7 @@ import utils
 import importlib
 import os
 import matplotlib.pyplot as plt
-import patplotlib.patches as mpatches
+import matplotlib.patches as mpatches
 from matplotlib import gridspec
 
 
@@ -72,10 +72,9 @@ class Prediction(object):
             inline_length = self.pred_section[1] - self.pred_section[0] + 1
             xline_length = self.pred_section[3] - self.pred_section[2] + 1
             time_depth = self.pred_section[5] - self.pred_section[4] + 1
-            if np.mod(time_depth,self.args.pred_batch) != 0:
-                raise Exception('Prediction batch size must be dividable by time depth %d' % time_depth)
-            else:
-                tf.logging.info('Inline length: %d, xline length: %d, time depth: %d, prediction batch size: %d' % (inline_length, xline_length, time_depth, self.args.pred_batch))
+                
+            tf.logging.info('Inline length: %d, xline length: %d, time depth: %d, prediction batch size: %d' % (inline_length, xline_length, time_depth, self.args.pred_batch))
+
             total_length = inline_length * xline_length*time_depth
             print('Total spot to estimate: %d' % total_length)
 
@@ -89,18 +88,23 @@ class Prediction(object):
             # Iterate through inline/xline/time
             for inline in range(self.pred_section[0], self.pred_section[1]+1):
                 for xline in range(self.pred_section[2], self.pred_section[3]+1):
-                    for t_line in range(self.pred_section[4], self.pred_section[5]+1):
-                        for i in range(self.args.pred_batch):
-                            data[i,:,:,:,:] = utils.cube_parse(self.segy_array, cube_incr=self.args.cube_incr, inline_num=inline, xline_num=xline, depth=t_line+i)                 
-                        classes_ = self.sess.run(tf.argmax(tf.nn.softmax(self.pred_seismic_model.logits), axis=-1), feed_dict={self.cube:data})                
-                        # Expand dimension to [batch size, 1]
-                        prediction[index*self.args.pred_batch, :] = np.expand_dims(classes_, axis=1)
-                        index += 1 
-                        tf.logging.info('Index %d => Inline: %d, xline: %d, time depth: %d, class %d' % (index, inline, xline, t_line, np.squeeze(classes_)))   
+                    for t_line in range(self.pred_section[4], self.pred_section[5]+1, self.args.pred_batch):
+                        if t_line + self.args.pred_batch > self.pred_section[5]:
+                            for i,j in enumerate(np.arange(t_line, self.pred_section[5]+1, 1)):
+                                data[i,:,:,:,:] = utils.cube_parse(self.segy_array, cube_incr=self.args.cube_incr, inline_num=inline, xline_num=xline, depth=j)
+                            classes_ = self.sess.run(tf.argmax(tf.nn.softmax(self.pred_seismic_model.logits), axis=-1), feed_dict={self.cube:data})                
+                            classes_ = classes_[:self.pred_section[5]+1-t_line]
+                            prediction[index*self.args.pred_batch:index*self.args.pred_batch+(self.pred_section[5]+1-t_line),:] = np.expand_dims(classes_, axis=1)
 
-            # Check loops
-            if not index*self.args.pred_batch == total_length:
-                raise Exception
+                        else:
+                            for i in range(self.args.pred_batch):
+                                data[i,:,:,:,:] = utils.cube_parse(self.segy_array, cube_incr=self.args.cube_incr, inline_num=inline, xline_num=xline, depth=t_line + i)
+                            classes_ = self.sess.run(tf.argmax(tf.nn.softmax(self.pred_seismic_model.logits), axis=-1), feed_dict={self.cube:data})                
+                            # Expand dimension to [batch size, 1]
+                            prediction[index*self.args.pred_batch:(index+1)*self.args.pred_batch, :] = np.expand_dims(classes_, axis=1)
+
+                        index += 1
+                        tf.logging.info('Index %d => Inline: %d, xline: %d, time depth: %d' % (index, inline, xline, t_line))   
 
             print('\tReshape prediction')
             prediction = prediction.reshape([inline_length, xline_length, time_depth, -1])
